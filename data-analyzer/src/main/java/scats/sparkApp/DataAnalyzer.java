@@ -122,9 +122,11 @@ public class DataAnalyzer {
         rddResult.foreachPartition(tuple2Iterator -> {
             SparkAccumuloDataStore.lazyInit(dsConf, ScatsDOWFeatureFactory.FT_NAME);
             SimpleFeatureBuilder builder = ScatsDOWFeatureFactory.getFeatureBuilder();
-            List<SimpleFeature> features =
-                    ScatsDOWFeatureFactory.buildFeaturesFromTuple(tuple2Iterator.next(), builder);
-            SparkAccumuloDataStore.writeFeatures(features);
+            while(tuple2Iterator.hasNext()){
+                List<SimpleFeature> features =
+                        ScatsDOWFeatureFactory.buildFeaturesFromTuple(tuple2Iterator.next(), builder);
+                SparkAccumuloDataStore.writeFeatures(features);
+            }
         });
 
         List<Integer> data = Arrays.asList(1, 2, 3);
