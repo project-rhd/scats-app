@@ -77,7 +77,7 @@ ${hdfs_root}${jar_hdfs_dir}/${jar_name} \
 if [ $? -eq 0 ]; then
     echo "Task 3 Finished"
 else
-    echo "Error. Failed in Task 4"
+    echo "Error. Failed in Task 3"
     exit 1
 fi
 
