@@ -68,9 +68,14 @@ INPUT_SHAPE_FILE=/scats/scats_site_vic_4326.csv
 
 ```
 
-3) Execute ./bin
+3) Execute scripts under ./bin
+- Script for importing scats raw data into GeoMesa / Accumulo
 ```
 ./importScats.sh
+```
+- Script for aggregating scats data and stored results into a new feature schema
+```
+./aggreDOW.sh
 ```
 ### Work flow of bin scripts
 1. Build application jar locally after unit tests
