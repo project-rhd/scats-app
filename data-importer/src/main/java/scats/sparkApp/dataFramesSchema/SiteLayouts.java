@@ -14,13 +14,16 @@ public class SiteLayouts implements Serializable {
     private String NB_LANE;
     private String LANE_MVT;
     private String LOC_MVT;
+    private String ID_HOMOGENEOUS_FLOW;
+    private String HF_WKT;
 
     public SiteLayouts() {
     }
 
     public SiteLayouts(String NB_SCATS_SITE, String DS_LOCATION,
                        String NB_DETECTOR, String DT_GENERAL,
-                       String NB_LANE, String LANE_MVT, String LOC_MVT) {
+                       String NB_LANE, String LANE_MVT, String LOC_MVT,
+                       String ID_HOMOGENEOUS_FLOW, String HF_WKT) {
         this.NB_SCATS_SITE = NB_SCATS_SITE;
         this.DS_LOCATION = DS_LOCATION;
         this.NB_DETECTOR = NB_DETECTOR;
@@ -28,6 +31,8 @@ public class SiteLayouts implements Serializable {
         this.NB_LANE = NB_LANE;
         this.LANE_MVT = LANE_MVT;
         this.LOC_MVT = LOC_MVT;
+        this.ID_HOMOGENEOUS_FLOW = ID_HOMOGENEOUS_FLOW;
+        this.HF_WKT = HF_WKT;
     }
 
     public String getNB_SCATS_SITE() {
@@ -84,5 +89,21 @@ public class SiteLayouts implements Serializable {
 
     public void setNB_DETECTOR(String NB_DETECTOR) {
         this.NB_DETECTOR = NB_DETECTOR;
+    }
+
+    public String getID_HOMOGENEOUS_FLOW() {
+        return ID_HOMOGENEOUS_FLOW;
+    }
+
+    public void setID_HOMOGENEOUS_FLOW(String ID_HOMOGENEOUS_FLOW) {
+        this.ID_HOMOGENEOUS_FLOW = ID_HOMOGENEOUS_FLOW;
+    }
+
+    public String getHF_WKT() {
+        return HF_WKT;
+    }
+
+    public void setHF_WKT(String HF_WKT) {
+        this.HF_WKT = HF_WKT;
     }
 }

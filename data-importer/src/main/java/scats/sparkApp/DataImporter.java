@@ -2,6 +2,9 @@ package scats.sparkApp;
 
 import com.google.common.base.Joiner;
 import org.apache.commons.cli.*;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
@@ -17,7 +20,6 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.storage.StorageLevel;
 import org.apache.spark.util.SizeEstimator;
 import org.geotools.feature.SchemaException;
 import org.geotools.feature.simple.SimpleFeatureBuilder;
@@ -31,10 +33,12 @@ import scats.sparkApp.dataFramesSchema.SiteLayouts;
 import scats.utils.MethodTimer;
 import scats.utils.RawVolumeDataCleaner;
 import scats.utils.accumulo.AccumuloTool;
-import scats.utils.geotools.factory.ScatsFeatureFactory;
+import scats.utils.geotools.factory.ScatsFeaturePointFactory;
 import scats.utils.spark.SparkAccumuloDataStore;
 
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.util.*;
 
 /**
@@ -46,8 +50,8 @@ public class DataImporter {
     private static final String INPUT_VOLUME_FILE = "inputVolumeFile";
     private static final String INPUT_LAYOUT_FILE = "inputLayoutFile";
     private static final String INPUT_SHAPE_FILE = "inputShapeFile";
+    private static final String INPUT_SHAPE_FILE2 = "inputShapeFile2";
     private static Logger logger = LoggerFactory.getLogger(DataImporter.class);
-
     private static CommandLine cmd;
     private SparkConf sparkConf;
 
@@ -73,7 +77,10 @@ public class DataImporter {
         }
 
         DataImporter dataImporter = new DataImporter();
-        MethodTimer.print(() -> {dataImporter.run(cmd); return null;});
+        MethodTimer.print(() -> {
+            dataImporter.run(cmd);
+            return null;
+        });
         System.exit(0);
     }
 
@@ -92,16 +99,19 @@ public class DataImporter {
         AccumuloTool.flagGenerateStats(dsConf, Boolean.FALSE);
         SimpleFeatureType sft = null;
         try {
-            sft = ScatsFeatureFactory.createFeatureType();
-        } catch (SchemaException|FactoryException e) {
+            sft = ScatsFeaturePointFactory.createFeatureType();
+        } catch (SchemaException | FactoryException e) {
             e.printStackTrace();
         }
         AccumuloTool.saveSimpleFeatureType(dsConf, sft);
 
-        // Read shape file from hdfs and parse into a hashmap
+        // Read shape file from hdfs and parse into a hash-map
         String path = cmd.getOptionValue(INPUT_SHAPE_FILE);
-        HashMap<String, String> scatsShp = readWktCsv("hdfs://scats-1-master:9000", path);
-        Broadcast<HashMap> scatsShp_b = sparkContext.broadcast(scatsShp);
+        String path2 = cmd.getOptionValue(INPUT_SHAPE_FILE2);
+        HashMap<String, String> scatsPointShp = readWktCsv("hdfs://scats-1-master:9000", path, "point");
+        HashMap<String, String> scatsLineShp = readWktCsv("hdfs://scats-1-master:9000", path2, "line");
+        Broadcast<HashMap> scatsPointShp_b = sparkContext.broadcast(scatsPointShp);
+        Broadcast<HashMap> scatsLineShp_b = sparkContext.broadcast(scatsLineShp);
 
         // 1. Process volume data
         long size = SizeEstimator.estimate(sparkContext.textFile(cmd.getOptionValue(INPUT_VOLUME_FILE)));
@@ -121,12 +131,12 @@ public class DataImporter {
                 if (cleanedLine != null) {
                     String[] fields = cleanedLine.split(",");
                     String nb_scats_site = fields[0];
-                    String wktGeometry = (String) scatsShp_b.value().get(nb_scats_site);
-                    if(wktGeometry != null){
-                        cleanedLine = wktGeometry + "," + Joiner.on(",").join(fields);
-                        fields = cleanedLine.split(",");
-                        result.add(RowFactory.create(fields));
-                    }
+                    String wktGeometry = (String) scatsPointShp_b.value().get(nb_scats_site);
+//                    if (wktGeometry != null) {
+                    cleanedLine = wktGeometry + "," + Joiner.on(",").join(fields);
+                    fields = cleanedLine.split(",");
+                    result.add(RowFactory.create(fields));
+//                    }
                 }
             }
             return result.iterator();
@@ -156,8 +166,9 @@ public class DataImporter {
             List<SiteLayouts> result = new ArrayList<>();
             while (iter.hasNext()) {
                 String[] fields = RawVolumeDataCleaner.removeQuotation(iter.next().split(","));
+                String HF_WKT = (String) scatsLineShp_b.value().get(fields[9]);
                 result.add(new SiteLayouts(fields[0], fields[3], fields[4],
-                        fields[5], fields[6], fields[7], fields[8]));
+                        fields[5], fields[6], fields[7], fields[8], fields[9], HF_WKT));
             }
             return result.iterator();
         }, false);
@@ -167,29 +178,42 @@ public class DataImporter {
         schemaSiteLayouts.createOrReplaceTempView("siteLayouts");
 
         // 3. SQL operations on Dataset
-        String sql = "SELECT b.*, " +
-                "c.DS_LOCATION, c.NB_LANE, c.LANE_MVT, c.LOC_MVT " +
+        String sql =
+                "SELECT b.*, " +
+                "c.DS_LOCATION, c.NB_LANE, c.LANE_MVT, c.LOC_MVT, c.ID_HOMOGENEOUS_FLOW, c.HF_WKT " +
                 "FROM volumeData b " +
-                "LEFT JOIN siteLayouts c " +
+                "LEFT JOIN (" +
+                    "SELECT NB_SCATS_SITE, NB_DETECTOR, " +
+                        "first_value(DS_LOCATION) as DS_LOCATION, " +
+                        "first_value(NB_LANE) as NB_LANE, " +
+                        "first_value(LANE_MVT) as LANE_MVT, " +
+                        "first_value(LOC_MVT) as LOC_MVT, " +
+                        "first_value(ID_HOMOGENEOUS_FLOW) as ID_HOMOGENEOUS_FLOW, " +
+                        "first_value(HF_WKT) as HF_WKT " +
+                    "FROM siteLayouts " +
+                    "GROUP BY NB_SCATS_SITE, NB_DETECTOR) c " +
                 "ON b.NB_SCATS_SITE = c.NB_SCATS_SITE " +
-                "AND b.NB_DETECTOR = c.NB_DETECTOR " +
-                "AND b.QT_INTERVAL_COUNT = c.DT_GENERAL";
+                "AND b.NB_DETECTOR = c.NB_DETECTOR";
+//                "AND b.QT_INTERVAL_COUNT = c.DT_GENERAL";
 
         Dataset<Row> scatsData = sparkSession.sql(sql);
         scatsData.createOrReplaceTempView("scats");
-        scatsData.persist(StorageLevel.MEMORY_AND_DISK_SER());
+//        scatsData.persist(StorageLevel.MEMORY_AND_DISK_SER());
 
         scatsData.foreachPartition(iterator -> {
             if (!iterator.hasNext())
                 return;
-            SimpleFeatureBuilder featureBuilder = ScatsFeatureFactory.getFeatureBuilder();
-            SparkAccumuloDataStore.lazyInit(dsConf, ScatsFeatureFactory.FT_NAME);
+            SimpleFeatureBuilder featureBuilder = ScatsFeaturePointFactory.getFeatureBuilder();
+            SparkAccumuloDataStore.lazyInit(dsConf, ScatsFeaturePointFactory.FT_NAME);
             while (iterator.hasNext()) {
                 Row row = iterator.next();
-                SimpleFeature simpleFeature = ScatsFeatureFactory.buildFeatureFromRow(row, featureBuilder);
-                SparkAccumuloDataStore.write(simpleFeature);
+                SimpleFeature simpleFeature = ScatsFeaturePointFactory.buildFeatureFromRow(row, featureBuilder);
+                if (simpleFeature != null)
+                    SparkAccumuloDataStore.write(simpleFeature);
             }
         });
+
+//        scatsData.show();
 
         // Close db connection and flush data.
         List<Integer> data = Arrays.asList(1, 2, 3);
@@ -207,11 +231,14 @@ public class DataImporter {
         inputVolumeFileOption.setRequired(true);
         Option inputLayoutFileOption = new Option("inl", INPUT_LAYOUT_FILE, true, "path to site layout data for processing");
         inputLayoutFileOption.setRequired(true);
-        Option inputShapeFileOption = new Option("ins", INPUT_SHAPE_FILE, true, "path to shape data for processing");
+        Option inputShapeFileOption = new Option("ins", INPUT_SHAPE_FILE, true, "path to point shape file for processing");
+        inputShapeFileOption.setRequired(true);
+        Option inputShapeFileOption2 = new Option("ins2", INPUT_SHAPE_FILE2, true, "path to line shape file for processing");
         inputShapeFileOption.setRequired(true);
         options.addOption(inputVolumeFileOption);
         options.addOption(inputLayoutFileOption);
         options.addOption(inputShapeFileOption);
+        options.addOption(inputShapeFileOption2);
         return options;
     }
 
@@ -221,20 +248,30 @@ public class DataImporter {
         return parser.parse(options, args);
     }
 
-    private static HashMap<String, String> readWktCsv(String hdfsSource, String path) {
+    private static HashMap<String, String> readWktCsv(String hdfsSource, String path, String type) {
         HashMap<String, String> scatsShp = new HashMap();
         try {
             Configuration configuration = new Configuration();
             configuration.set("fs.defaultFS", hdfsSource);
             FileSystem fs = FileSystem.get(configuration);
             FSDataInputStream inputStream = fs.open(new Path(path));
-            Scanner scanner = new Scanner(inputStream);
-            // Skip header
-            scanner.nextLine();
-            while (scanner.hasNext()) {
-                String[] fields = scanner.nextLine().split(",");
-                scatsShp.put(fields[0], fields[1]);
+            Reader reader = new InputStreamReader(inputStream, "UTF-8");
+            CSVParser parser = new CSVParser(reader, CSVFormat.DEFAULT.withHeader());
+
+            for (CSVRecord record : parser){
+                String wkt = record.get("WKT");
+                if (type.equals("point")){
+                    String site_num = record.get("SITE_NO");
+                    scatsShp.put(site_num, wkt);
+                }else if(type.equals("line")){
+                    String hfidl = record.get("hfidl");
+                    String hfidr = record.get("hfidr");
+                    scatsShp.put(hfidl, wkt);
+                    scatsShp.put(hfidr,wkt);
+                }
             }
+
+            reader.close();
             inputStream.close();
             fs.close();
         } catch (IOException e) {

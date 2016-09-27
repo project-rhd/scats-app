@@ -1,6 +1,7 @@
 package scats.utils.geotools.factory;
 
 import com.google.common.base.Joiner;
+import com.vividsolutions.jts.geom.MultiLineString;
 import com.vividsolutions.jts.geom.Point;
 import org.geotools.factory.Hints;
 import org.geotools.feature.SchemaException;
@@ -13,9 +14,12 @@ import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.referencing.FactoryException;
 import scala.Tuple2;
 
+import java.text.DateFormat;
 import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -24,7 +28,7 @@ import java.util.List;
 
 public class ScatsDOWFeatureFactory {
 
-    public static final String FT_NAME = "ScatsDayOfWeek";
+    public static final String FT_NAME = "ScatsDayOfWeekBySite";
 
     public static final String NB_SCATS_SITE = "NB_SCATS_SITE";
     public static final String NB_DETECTOR = "NB_DETECTOR";
@@ -36,12 +40,13 @@ public class ScatsDOWFeatureFactory {
     public static SimpleFeatureType createFeatureType() throws SchemaException, FactoryException {
         List<String> attributes = new ArrayList<>();
         attributes.add("*geometry:Point:srid=4326");            //indexed
-        attributes.add(NB_SCATS_SITE + ":String:index=join");   //indexed
+        attributes.add(NB_SCATS_SITE + ":String:index=full");   //indexed
         attributes.add(NB_DETECTOR + ":String");
-        attributes.add(DAY_OF_WEEK + ":String:index=join");     //indexed
-        attributes.add(TIME_OF_DAY + ":Integer:index=join");    //indexed
+        attributes.add(DAY_OF_WEEK + ":String:index=full");     //indexed
+        attributes.add(TIME_OF_DAY + ":Date");
         attributes.add(AVERAGE_VEHICLE_COUNT + ":Double");
         attributes.add(NUM_OF_FEATURES + ":Integer");
+        attributes.add("unique_road:MultiLineString:srid=4326");
 
         // create the bare simple-feature type
         String simpleFeatureTypeSchema = Joiner.on(",").join(attributes);
@@ -65,14 +70,21 @@ public class ScatsDOWFeatureFactory {
         String detectorNum = keys[1];
         String dayOfWeek = keys[2];
         String geo_wkt = keys[3];
+        String geo_wkt_line = keys[4];
         System.out.println(Arrays.asList(keys));
         System.out.println(geo_wkt);
         Point point = (Point) WKTUtils.read(geo_wkt);
+        MultiLineString line = null;
+        if(geo_wkt_line !=null && !geo_wkt_line.equals("null")){
+            line = (MultiLineString) WKTUtils.read(geo_wkt_line);
+            line.setSRID(4326);
+        }
         System.out.println(point);
         point.setSRID(4326);
 
+        DateFormat df = new SimpleDateFormat("mm");
         for (int i = 0; i < 96; i++) {
-            Integer timeOfDay = i * 15;
+            Date timeOfDay = df.parse(Integer.toString(i * 15));
             String fid = scatsSite + "-" + detectorNum + "-" + dayOfWeek + "-" + timeOfDay;
             builder.reset();
             SimpleFeature simpleFeature = builder.buildFeature(fid);
@@ -85,6 +97,7 @@ public class ScatsDOWFeatureFactory {
             simpleFeature.setAttribute(TIME_OF_DAY, timeOfDay);
             simpleFeature.setAttribute(AVERAGE_VEHICLE_COUNT, tuple._2[i]);
             simpleFeature.setAttribute(NUM_OF_FEATURES, tuple._2[96]);
+            simpleFeature.setAttribute("unique_road", line);
             result.add(simpleFeature);
         }
         return result;

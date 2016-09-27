@@ -1,5 +1,6 @@
 package scats.sparkApp;
 
+import com.vividsolutions.jts.geom.Geometry;
 import org.apache.commons.cli.*;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.spark.SparkConf;
@@ -95,7 +96,12 @@ public class DataAnalyzer {
             String detectorNum = (String) simpleFeature.getAttribute("NB_DETECTOR");
             String dayOfWeek = (String) simpleFeature.getAttribute("DAY_OF_WEEK");
             String geo_wkt = (simpleFeature.getDefaultGeometry()).toString();
-            String key = scatsSite + "#" + detectorNum + "#" + dayOfWeek + "#" + geo_wkt;
+            Object geo_line = simpleFeature.getAttribute("unique_road");
+            String geo_wkt_line = null;
+            if (geo_line != null)
+                geo_wkt_line = geo_line.toString();
+            detectorNum = "all";
+            String key = scatsSite + "#" + detectorNum + "#" + dayOfWeek + "#" + geo_wkt + "#" + geo_wkt_line;
 
             int[] value = new int[timeSlotsNum + 1];
             for (int i = 0; i < timeSlotsNum; i++) {

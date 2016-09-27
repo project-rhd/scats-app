@@ -1,7 +1,7 @@
 package scats.utils.geotools.factory;
 
 import com.google.common.base.Joiner;
-import com.vividsolutions.jts.geom.Point;
+import com.vividsolutions.jts.geom.*;
 import org.apache.spark.sql.Row;
 import org.geotools.factory.Hints;
 import org.geotools.feature.SchemaException;
@@ -27,7 +27,7 @@ import java.util.List;
  * @author Yikai Gong
  */
 
-public class ScatsFeatureFactory {
+public class ScatsFeaturePointFactory {
 
     public static final String FT_NAME = "ScatsVolumeData";
 
@@ -50,6 +50,8 @@ public class ScatsFeatureFactory {
         attributes.add("NB_LANE:String");
         attributes.add("LANE_MVT:String");
         attributes.add("LOC_MVT:String");
+        attributes.add("HF:String:index=join");
+        attributes.add("unique_road:MultiLineString:srid=4326");
 
         // create the bare simple-feature type
         String simpleFeatureTypeSchema = Joiner.on(",").join(attributes);
@@ -66,11 +68,29 @@ public class ScatsFeatureFactory {
     }
 
     public static SimpleFeature buildFeatureFromRow(Row row, SimpleFeatureBuilder builder) throws ParseException {
-        Point point = (Point) WKTUtils.read(row.getString(0));
+        String wktPoint = row.getString(0);
+        String wktLine = row.getString(105);
+        Point point = null;
+        MultiLineString line = null;
+        if (wktPoint!= null && !wktPoint.equals("null")){
+            point = (Point) WKTUtils.read(wktPoint);
+            point.setSRID(4326);
+        }
+        if (wktLine != null && !wktLine.equals("null")){
+            Geometry geo = WKTUtils.read(wktLine);
+            if (geo instanceof MultiLineString)
+                line = (MultiLineString)geo;
+            else if (geo instanceof LineString){
+                LineString[] lineStrings = new LineString[]{(LineString) geo};
+                line = new GeometryFactory().createMultiLineString(lineStrings);
+            }
+            if (line != null)
+                line.setSRID(4326);
+        }
+
         String scatsSite = row.getString(1);
         String dateStr = row.getString(2);
         String detectorNum = row.getString(3);
-        point.setSRID(4326);
         DateFormat df = new SimpleDateFormat("yyyy-MM-dd");
         Date date = df.parse(dateStr.split(" ")[0]);
         String dayOfWeek_Str = new SimpleDateFormat("EE").format(date).toString();
@@ -94,7 +114,8 @@ public class ScatsFeatureFactory {
         simpleFeature.setAttribute("NB_LANE", row.getString(101));
         simpleFeature.setAttribute("LANE_MVT", row.getString(102));
         simpleFeature.setAttribute("LOC_MVT", row.getString(103));
-
+        simpleFeature.setAttribute("HF", row.getString(104));
+        simpleFeature.setAttribute("unique_road", line);
         return simpleFeature;
     }
 
