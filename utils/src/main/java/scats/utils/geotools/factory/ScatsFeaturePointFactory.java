@@ -75,6 +75,10 @@ public class ScatsFeaturePointFactory {
         if (wktPoint!= null && !wktPoint.equals("null")){
             point = (Point) WKTUtils.read(wktPoint);
             point.setSRID(4326);
+        } else{
+            // Since GeoMesa do not allow null for default geometry,
+            // Skip this row by return null.
+            return null;
         }
         if (wktLine != null && !wktLine.equals("null")){
             Geometry geo = WKTUtils.read(wktLine);
