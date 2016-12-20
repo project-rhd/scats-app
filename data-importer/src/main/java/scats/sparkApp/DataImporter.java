@@ -91,7 +91,7 @@ public class DataImporter {
 
         // Configures the number of partitions to use when shuffling data for joins or aggregations.
         // 5000 works fine
-        sparkSession.sqlContext().setConf("spark.sql.shuffle.partitions", "200"); // 5000 200
+        sparkSession.sqlContext().setConf("spark.sql.shuffle.partitions", "5000"); // 5000 200
 
         // Create feature type schemes in accumulo
         Map<String, String> dsConf = AccumuloTool.getAccumuloDataStoreConf(cmd);
@@ -116,7 +116,7 @@ public class DataImporter {
         // 1. Process volume data
         long size = SizeEstimator.estimate(sparkContext.textFile(cmd.getOptionValue(INPUT_VOLUME_FILE)));
         System.out.println("Estimated size of rawVolumeData is " + size);
-        JavaRDD<String> rawVolumeData = sparkContext.textFile(cmd.getOptionValue(INPUT_VOLUME_FILE), 100); //15000 100
+        JavaRDD<String> rawVolumeData = sparkContext.textFile(cmd.getOptionValue(INPUT_VOLUME_FILE), 15000); //15000 100
 
         // Map volumeData from RDD<String> to RDD<Row> and add geo location to each row
         String volumeData_head = rawVolumeData.first();
@@ -156,7 +156,7 @@ public class DataImporter {
         // 2. Process siteLayOut data
         long size_2 = SizeEstimator.estimate(sparkContext.textFile(cmd.getOptionValue(INPUT_LAYOUT_FILE)));
         System.out.println("Estimated size of siteLayoutsStr is " + size_2);
-        JavaRDD<String> siteLayoutsStr = sparkContext.textFile(cmd.getOptionValue(INPUT_LAYOUT_FILE), 200); //4000 200
+        JavaRDD<String> siteLayoutsStr = sparkContext.textFile(cmd.getOptionValue(INPUT_LAYOUT_FILE), 4000); //4000 200
 //        siteLayoutsStr.persist(StorageLevel.DISK_ONLY());
 
         // Map layoutData from RDD<String> to RDD<SiteLayouts>

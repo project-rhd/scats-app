@@ -15,11 +15,22 @@ public class MethodTimer {
             call = task.call();
             TimeUnit time = TimeUnit.MILLISECONDS;
             long duration = System.currentTimeMillis() - startTime;
+
+            System.out.println("Finished in " + time.toSeconds(duration) + "S");
+
+            long days = time.toDays(duration);
+            duration = duration - TimeUnit.DAYS.toMillis(days);
+            long hours = time.toHours(duration);
+            duration = duration - TimeUnit.HOURS.toMillis(hours);
+            long minutes = time.toMinutes(duration);
+            duration = duration - TimeUnit.MINUTES.toMillis(minutes);
+            long seconds = time.toSeconds(duration);
+
             System.out.println("Task finished in " +
-                    time.toDays(duration) + "D " +
-                    time.toHours(duration) + "H " +
-                    time.toMinutes(duration) + "M " +
-                    time.toSeconds(duration) + "S.");
+                    days + "D " +
+                    hours + "H " +
+                    minutes + "M " +
+                    seconds + "S.");
         } catch (Exception e) {
             e.printStackTrace();
         }
