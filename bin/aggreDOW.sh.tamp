@@ -14,11 +14,11 @@ client_spark_home=/home/darcular/Applications/spark-1.6.0-bin-hadoop2.6
 # Local Hadoop home e.g. /usrl/local/hadoop
 client_hadoop_home=/home/darcular/Applications/hadoop-2.6.0
 
-accumulo_instance_id=scats
+accumulo_instance_id=smash
 # scats-1-master:2181,scats-1-slave:2181,scats-2-slave:2181
 zookeepers=scats-1-master:2181,scats-1-slave:2181,scats-2-slave:2181,scats-3-slave:2181,scats-4-slave:2181,scats-5-slave:2181,scats-6-slave:2181,scats-7-slave:2181,scats-8-slave:2181,scats-9-slave:2181,scats-10-slave:2181,scats-11-slave:2181,scats-12-slave:2181
 accumulo_user_name=root
-accumulo_user_pwd=scats
+accumulo_user_pwd=smash
 accumulo_table_name=sample
 
 #======= Primary Settings End ================================
